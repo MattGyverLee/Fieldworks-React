@@ -50,6 +50,30 @@ const api = {
   search: {
     entries: (query: SearchQuery): Promise<SearchResult[]> =>
       ipcRenderer.invoke('search:entries', query)
+  },
+
+  // Text Operations
+  texts: {
+    getAll: (limit?: number, offset?: number): Promise<any[]> =>
+      ipcRenderer.invoke('texts:getAll', limit, offset),
+
+    getById: (guid: string): Promise<any> =>
+      ipcRenderer.invoke('texts:getById', guid),
+
+    create: (input: { title: Record<string, string>; genre?: string }): Promise<any> =>
+      ipcRenderer.invoke('texts:create', input),
+
+    update: (guid: string, updates: Partial<{ title: Record<string, string>; genre: string; description: string }>): Promise<any> =>
+      ipcRenderer.invoke('texts:update', guid, updates),
+
+    delete: (guid: string): Promise<{ success: boolean }> =>
+      ipcRenderer.invoke('texts:delete', guid),
+
+    addParagraph: (textGuid: string, content: Record<string, string>): Promise<any> =>
+      ipcRenderer.invoke('texts:addParagraph', textGuid, content),
+
+    updateParagraph: (guid: string, content: Record<string, string>): Promise<any> =>
+      ipcRenderer.invoke('texts:updateParagraph', guid, content)
   }
 }
 

@@ -4,11 +4,13 @@ import {
   BookOutlined,
   FileTextOutlined,
   ToolOutlined,
-  FolderOpenOutlined
+  FolderOpenOutlined,
+  SearchOutlined
 } from '@ant-design/icons'
 import { useAppStore } from './stores/appStore'
 import { LexiconView } from './features/lexicon/LexiconView'
 import { TextsView } from './features/texts/TextsView'
+import { ConcordanceView } from './features/concordance/ConcordanceView'
 import './styles/global.css'
 
 const { Header, Sider, Content } = Layout
@@ -26,6 +28,11 @@ export const App: React.FC = () => {
       key: 'texts',
       icon: <FileTextOutlined />,
       label: 'Texts & Words'
+    },
+    {
+      key: 'concordance',
+      icon: <SearchOutlined />,
+      label: 'Concordance'
     },
     {
       key: 'grammar',
@@ -122,16 +129,11 @@ export const App: React.FC = () => {
             >
               {currentView === 'lexicon' && <LexiconView />}
               {currentView === 'texts' && <TextsView />}
+              {currentView === 'concordance' && <ConcordanceView />}
               {currentView === 'grammar' && (
                 <div style={{ padding: '24px' }}>
                   <h2>Grammar View</h2>
                   <p>Coming in Phase 6</p>
-                </div>
-              )}
-              {currentView === 'notebook' && (
-                <div style={{ padding: '24px' }}>
-                  <h2>Notebook View</h2>
-                  <p>Future feature</p>
                 </div>
               )}
             </Content>

@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import { getDatabase } from '../database/connection'
-import { lexicalEntries } from '../database/schema'
+import { lexicalEntries, texts, textParagraphs } from '../database/schema'
 import { eq, sql } from 'drizzle-orm'
 import { FWDataReader } from '../fwdata/reader'
 import { FWDataWriter } from '../fwdata/writer'
@@ -254,6 +254,182 @@ export function registerIpcHandlers(): void {
       return 0
     }
   })
+
+  // Text Operations
+  ipcMain.handle('texts:getAll', async (_event, limit: number = 1000, offset: number = 0) => {
+    try {
+      const db = getDatabase()
+      const textsList = await db
+        .select()
+        .from(texts)
+        .limit(limit)
+        .offset(offset)
+        .all()
+
+      return textsList.map(textFromDb)
+    } catch (error: any) {
+      console.error('Error getting texts:', error)
+      throw new Error(error.message)
+    }
+  })
+
+  ipcMain.handle('texts:getById', async (_event, guid: string) => {
+    try {
+      const db = getDatabase()
+      const text = await db
+        .select()
+        .from(texts)
+        .where(eq(texts.guid, guid))
+        .get()
+
+      if (!text) throw new Error('Text not found')
+
+      // Get paragraphs for this text
+      const paragraphs = await db
+        .select()
+        .from(textParagraphs)
+        .where(eq(textParagraphs.textGuid, guid))
+        .orderBy(textParagraphs.orderIndex)
+        .all()
+
+      return {
+        ...textFromDb(text),
+        paragraphs: paragraphs.map(paragraphFromDb)
+      }
+    } catch (error: any) {
+      console.error('Error getting text:', error)
+      throw new Error(error.message)
+    }
+  })
+
+  ipcMain.handle('texts:create', async (_event, input: { title: Record<string, string>; genre?: string }) => {
+    try {
+      const db = getDatabase()
+
+      const newText = {
+        guid: nanoid(),
+        titleJson: JSON.stringify(input.title),
+        genre: input.genre || '',
+        source: '',
+        description: '',
+        abbreviation: '',
+        dateCreated: new Date(),
+        dateModified: new Date()
+      }
+
+      await db.insert(texts).values(newText).run()
+
+      return textFromDb(newText)
+    } catch (error: any) {
+      console.error('Error creating text:', error)
+      throw new Error(error.message)
+    }
+  })
+
+  ipcMain.handle('texts:update', async (_event, guid: string, updates: Partial<{ title: Record<string, string>; genre: string; description: string }>) => {
+    try {
+      const db = getDatabase()
+
+      const updateData: any = {
+        dateModified: new Date()
+      }
+
+      if (updates.title) updateData.titleJson = JSON.stringify(updates.title)
+      if (updates.genre) updateData.genre = updates.genre
+      if (updates.description) updateData.description = updates.description
+
+      await db
+        .update(texts)
+        .set(updateData)
+        .where(eq(texts.guid, guid))
+        .run()
+
+      const updated = await db
+        .select()
+        .from(texts)
+        .where(eq(texts.guid, guid))
+        .get()
+
+      return textFromDb(updated)
+    } catch (error: any) {
+      console.error('Error updating text:', error)
+      throw new Error(error.message)
+    }
+  })
+
+  ipcMain.handle('texts:delete', async (_event, guid: string) => {
+    try {
+      const db = getDatabase()
+
+      // Delete paragraphs first
+      await db.delete(textParagraphs).where(eq(textParagraphs.textGuid, guid)).run()
+
+      // Delete text
+      await db.delete(texts).where(eq(texts.guid, guid)).run()
+
+      return { success: true }
+    } catch (error: any) {
+      console.error('Error deleting text:', error)
+      throw new Error(error.message)
+    }
+  })
+
+  ipcMain.handle('texts:addParagraph', async (_event, textGuid: string, content: Record<string, string>) => {
+    try {
+      const db = getDatabase()
+
+      // Get max order index
+      const maxOrder = await db
+        .select({ max: sql<number>`MAX(order_index)` })
+        .from(textParagraphs)
+        .where(eq(textParagraphs.textGuid, textGuid))
+        .get()
+
+      const newParagraph = {
+        guid: nanoid(),
+        textGuid,
+        contentsJson: JSON.stringify(content),
+        segmentsJson: '[]',
+        parseIsCurrent: false,
+        orderIndex: (maxOrder?.max || -1) + 1,
+        dateCreated: new Date(),
+        dateModified: new Date()
+      }
+
+      await db.insert(textParagraphs).values(newParagraph).run()
+
+      return paragraphFromDb(newParagraph)
+    } catch (error: any) {
+      console.error('Error adding paragraph:', error)
+      throw new Error(error.message)
+    }
+  })
+
+  ipcMain.handle('texts:updateParagraph', async (_event, guid: string, content: Record<string, string>) => {
+    try {
+      const db = getDatabase()
+
+      await db
+        .update(textParagraphs)
+        .set({
+          contentsJson: JSON.stringify(content),
+          dateModified: new Date()
+        })
+        .where(eq(textParagraphs.guid, guid))
+        .run()
+
+      const updated = await db
+        .select()
+        .from(textParagraphs)
+        .where(eq(textParagraphs.guid, guid))
+        .get()
+
+      return paragraphFromDb(updated)
+    } catch (error: any) {
+      console.error('Error updating paragraph:', error)
+      throw new Error(error.message)
+    }
+  })
 }
 
 function entryFromDb(dbEntry: any): LexEntry {
@@ -274,5 +450,35 @@ function entryFromDb(dbEntry: any): LexEntry {
     dateCreated: new Date(dbEntry.dateCreated),
     dateModified: new Date(dbEntry.dateModified),
     isDirty: dbEntry.isDirty
+  }
+}
+
+function textFromDb(dbText: any): any {
+  return {
+    guid: dbText.guid,
+    class: 'Text',
+    ownerguid: dbText.ownerguid,
+    title: JSON.parse(dbText.titleJson || '{}'),
+    genre: dbText.genre,
+    source: dbText.source,
+    description: dbText.description,
+    abbreviation: dbText.abbreviation,
+    dateCreated: new Date(dbText.dateCreated),
+    dateModified: new Date(dbText.dateModified)
+  }
+}
+
+function paragraphFromDb(dbPara: any): any {
+  return {
+    guid: dbPara.guid,
+    class: 'StTxtPara',
+    ownerguid: dbPara.ownerguid,
+    textGuid: dbPara.textGuid,
+    contents: JSON.parse(dbPara.contentsJson || '{}'),
+    segments: JSON.parse(dbPara.segmentsJson || '[]'),
+    parseIsCurrent: dbPara.parseIsCurrent,
+    orderIndex: dbPara.orderIndex,
+    dateCreated: new Date(dbPara.dateCreated),
+    dateModified: new Date(dbPara.dateModified)
   }
 }
