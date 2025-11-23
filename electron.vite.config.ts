@@ -39,5 +39,9 @@ export default defineConfig({
     server: {
       port: 3000
     }
+  },
+  // Electron launch options for development (needed for running as root in containers)
+  electronApp: {
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
   }
 })

@@ -4,6 +4,12 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { initDatabase, closeDatabase } from './database/connection'
 import { registerIpcHandlers } from './ipc/handlers'
 
+// Disable sandbox when running as root (needed for containers/CI)
+if (process.getuid && process.getuid() === 0) {
+  app.commandLine.appendSwitch('no-sandbox')
+  app.commandLine.appendSwitch('disable-setuid-sandbox')
+}
+
 let mainWindow: BrowserWindow | null = null
 
 function createWindow(): void {
