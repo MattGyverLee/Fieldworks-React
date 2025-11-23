@@ -100,7 +100,10 @@ const api = {
       ipcRenderer.invoke('parser:deleteMorpheme', id),
 
     parseWord: (word: string, config?: Partial<ParserConfig>): Promise<ParseResult> =>
-      ipcRenderer.invoke('parser:parseWord', word, config)
+      ipcRenderer.invoke('parser:parseWord', word, config),
+
+    parseWordHermitCrab: (word: string, config?: Partial<ParserConfig>): Promise<ParseResult> =>
+      ipcRenderer.invoke('parser:parseWordHermitCrab', word, config)
   }
 }
 

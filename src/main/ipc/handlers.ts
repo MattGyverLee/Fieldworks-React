@@ -573,6 +573,51 @@ export function registerIpcHandlers(): void {
       throw new Error(error.message)
     }
   })
+
+  ipcMain.handle('parser:parseWordHermitCrab', async (_event, word: string, _config?: any) => {
+    try {
+      const { HermitCrabParser, createEnglishCharDefTable } = await import('../parser/hermitCrabParser')
+      const db = getDatabase()
+
+      // Load all morphemes from database
+      const allMorphemes = await db.select().from(morphemes).all()
+      const morphemeList = allMorphemes.map(morphemeFromDb)
+
+      // Create character definition table
+      const charDefTable = createEnglishCharDefTable()
+
+      // Create parser and load data
+      const parser = new HermitCrabParser(charDefTable)
+      parser.loadMorphemes(morphemeList)
+
+      // TODO: Load phonological rules from database
+
+      // Parse the word
+      const wordResults = parser.parseWord(word)
+
+      // Convert to ParseResult format
+      const analyses = wordResults.map((w) => ({
+        morphs: [{
+          morpheme: w.rootAllomorph?.morpheme || { id: 'unknown', form: word, type: 'root' as const, category: '?', gloss: '?' },
+          form: word,
+          position: { start: 0, end: word.length }
+        }],
+        category: w.rootAllomorph?.morpheme.category || '?',
+        gloss: w.gloss,
+        isValid: true,
+        violatedConstraints: []
+      }))
+
+      return {
+        word,
+        analyses,
+        parseTime: 0 // TODO: Track parse time
+      }
+    } catch (error: any) {
+      console.error('Error parsing word with Hermit Crab:', error)
+      throw new Error(error.message)
+    }
+  })
 }
 
 function entryFromDb(dbEntry: any): LexEntry {

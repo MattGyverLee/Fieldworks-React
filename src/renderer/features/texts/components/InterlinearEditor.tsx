@@ -1,10 +1,12 @@
 import React, { useState, useMemo } from 'react'
-import { Card, Space, Input, Button, Divider, Typography, Empty, Tag, Modal, Collapse } from 'antd'
-import { SaveOutlined, BookOutlined, ThunderboltOutlined, CheckCircleOutlined } from '@ant-design/icons'
+import { Card, Space, Input, Button, Divider, Typography, Empty, Tag, Modal, Collapse, Radio } from 'antd'
+import { SaveOutlined, BookOutlined, ThunderboltOutlined, CheckCircleOutlined, ExperimentOutlined } from '@ant-design/icons'
 import type { Text, Paragraph } from '../../../stores/textsAtoms'
 import type { ParseResult, ParseAnalysis } from '@shared/types'
 
 const { Text: AntText } = Typography
+
+type ParserType = 'xample' | 'hermitcrab'
 
 interface InterlinearEditorProps {
   text: Text
@@ -25,6 +27,7 @@ export const InterlinearEditor: React.FC<InterlinearEditorProps> = ({ text: _tex
   const [parsing, setParsing] = useState(false)
   const [showParseResults, setShowParseResults] = useState(false)
   const [currentParseResult, setCurrentParseResult] = useState<ParseResult | null>(null)
+  const [parserType, setParserType] = useState<ParserType>('xample')
 
   // Parse paragraphs into words
   const paragraphWords = useMemo(() => {
@@ -69,7 +72,9 @@ export const InterlinearEditor: React.FC<InterlinearEditorProps> = ({ text: _tex
 
     try {
       setParsing(true)
-      const result = await window.api.parser.parseWord(wordform)
+      const result = parserType === 'hermitcrab'
+        ? await window.api.parser.parseWordHermitCrab(wordform)
+        : await window.api.parser.parseWord(wordform)
       setCurrentParseResult(result)
       setShowParseResults(true)
     } catch (error: any) {
@@ -182,15 +187,29 @@ export const InterlinearEditor: React.FC<InterlinearEditorProps> = ({ text: _tex
             }
           >
             <Space direction="vertical" style={{ width: '100%' }}>
+              <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+                <Space>
+                  <Button
+                    icon={<ThunderboltOutlined />}
+                    onClick={handleParseWord}
+                    loading={parsing}
+                    type="dashed"
+                  >
+                    Auto-Parse
+                  </Button>
+                  <Radio.Group
+                    value={parserType}
+                    onChange={(e) => setParserType(e.target.value)}
+                    size="small"
+                  >
+                    <Radio.Button value="xample">xAMPLE</Radio.Button>
+                    <Radio.Button value="hermitcrab">
+                      <ExperimentOutlined /> Hermit Crab
+                    </Radio.Button>
+                  </Radio.Group>
+                </Space>
+              </Space>
               <Space style={{ width: '100%' }}>
-                <Button
-                  icon={<ThunderboltOutlined />}
-                  onClick={handleParseWord}
-                  loading={parsing}
-                  type="dashed"
-                >
-                  Auto-Parse
-                </Button>
                 <Input
                   placeholder="Enter gloss (e.g., walk-PAST-1SG)"
                   value={glossInput}
@@ -279,8 +298,8 @@ export const InterlinearEditor: React.FC<InterlinearEditorProps> = ({ text: _tex
         {/* Help Text */}
         <Card size="small" style={{ background: '#fafafa' }}>
           <AntText type="secondary">
-            💡 <strong>Tip:</strong> Click a word to gloss it. Use the Auto-Parse button to automatically analyze words
-            based on your morpheme dictionary. Green borders indicate glossed words.
+            💡 <strong>Tip:</strong> Click a word to gloss it. Use Auto-Parse with either <strong>xAMPLE</strong> (pattern-based)
+            or <strong>Hermit Crab</strong> (phonological rules) to automatically analyze words. Green borders indicate glossed words.
           </AntText>
         </Card>
       </Space>
