@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react'
-import { Card, Space, Input, Button, Divider, Typography, Empty, Tag } from 'antd'
-import { SaveOutlined, BookOutlined } from '@ant-design/icons'
+import { Card, Space, Input, Button, Divider, Typography, Empty, Tag, Modal, Collapse } from 'antd'
+import { SaveOutlined, BookOutlined, ThunderboltOutlined, CheckCircleOutlined } from '@ant-design/icons'
 import type { Text, Paragraph } from '../../../stores/textsAtoms'
+import type { ParseResult, ParseAnalysis } from '@shared/types'
 
 const { Text: AntText } = Typography
 
@@ -14,12 +15,16 @@ interface WordGloss {
   wordform: string
   gloss: string
   morphemes?: { form: string; gloss: string }[]
+  parseResult?: ParseResult
 }
 
 export const InterlinearEditor: React.FC<InterlinearEditorProps> = ({ text: _text, paragraphs }) => {
   const [selectedWord, setSelectedWord] = useState<{paragraphIndex: number; wordIndex: number} | null>(null)
   const [glossInput, setGlossInput] = useState('')
   const [wordGlosses, setWordGlosses] = useState<Map<string, WordGloss>>(new Map())
+  const [parsing, setParsing] = useState(false)
+  const [showParseResults, setShowParseResults] = useState(false)
+  const [currentParseResult, setCurrentParseResult] = useState<ParseResult | null>(null)
 
   // Parse paragraphs into words
   const paragraphWords = useMemo(() => {
@@ -36,168 +41,249 @@ export const InterlinearEditor: React.FC<InterlinearEditorProps> = ({ text: _tex
     const key = `${paragraphIndex}-${wordIndex}`
     const existing = wordGlosses.get(key)
     setGlossInput(existing?.gloss || '')
+    setCurrentParseResult(existing?.parseResult || null)
   }
 
   const handleSaveGloss = () => {
     if (!selectedWord) return
 
-    const word = paragraphWords[selectedWord.paragraphIndex][selectedWord.wordIndex]
     const key = `${selectedWord.paragraphIndex}-${selectedWord.wordIndex}`
+    const wordform = paragraphWords[selectedWord.paragraphIndex][selectedWord.wordIndex]
 
     const newGlosses = new Map(wordGlosses)
     newGlosses.set(key, {
-      wordform: word,
-      gloss: glossInput
+      wordform,
+      gloss: glossInput,
+      parseResult: currentParseResult || undefined
     })
     setWordGlosses(newGlosses)
-    setSelectedWord(null)
     setGlossInput('')
+    setSelectedWord(null)
+    setCurrentParseResult(null)
   }
 
-  const getWordKey = (paraIndex: number, wordIndex: number) =>
-    `${paraIndex}-${wordIndex}`
+  const handleParseWord = async () => {
+    if (!selectedWord) return
 
-  if (paragraphs.length === 0) {
-    return (
-      <Empty
-        image={<BookOutlined style={{ fontSize: '48px', color: '#ccc' }} />}
-        description="No baseline text to analyze"
-      >
-        <p style={{ color: '#999' }}>
-          Add paragraphs in the Baseline Text tab first
-        </p>
-      </Empty>
-    )
+    const wordform = paragraphWords[selectedWord.paragraphIndex][selectedWord.wordIndex]
+
+    try {
+      setParsing(true)
+      const result = await window.api.parser.parseWord(wordform)
+      setCurrentParseResult(result)
+      setShowParseResults(true)
+    } catch (error: any) {
+      console.error('Error parsing word:', error)
+      Modal.error({
+        title: 'Parse Error',
+        content: error.message || 'Failed to parse word'
+      })
+    } finally {
+      setParsing(false)
+    }
   }
+
+  const handleSelectAnalysis = (analysis: ParseAnalysis) => {
+    setGlossInput(analysis.gloss)
+    setShowParseResults(false)
+  }
+
+  const totalWords = paragraphWords.reduce((sum, words) => sum + words.length, 0)
+  const glossedWords = wordGlosses.size
+  const coverage = totalWords > 0 ? Math.round((glossedWords / totalWords) * 100) : 0
 
   return (
-    <div>
-      <Card
-        size="small"
-        style={{ marginBottom: '16px', background: '#fafafa' }}
-        title="Interlinear Analysis"
-      >
-        <Space direction="vertical" style={{ width: '100%' }}>
-          <AntText type="secondary">
-            Click on any word to add a gloss. Glosses appear below each word.
-          </AntText>
+    <div style={{ padding: '16px' }}>
+      <Space direction="vertical" style={{ width: '100%' }} size="large">
+        {/* Stats */}
+        <Card size="small">
+          <Space size="large">
+            <div>
+              <AntText type="secondary">Words:</AntText> <AntText strong>{totalWords}</AntText>
+            </div>
+            <Divider type="vertical" />
+            <div>
+              <AntText type="secondary">Glossed:</AntText> <AntText strong>{glossedWords}</AntText>
+            </div>
+            <Divider type="vertical" />
+            <div>
+              <AntText type="secondary">Coverage:</AntText>{' '}
+              <AntText strong style={{ color: coverage > 80 ? '#52c41a' : coverage > 50 ? '#faad14' : '#ff4d4f' }}>
+                {coverage}%
+              </AntText>
+            </div>
+          </Space>
+        </Card>
 
-          {selectedWord && (
-            <Card size="small">
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <div>
-                  <strong>Analyzing:</strong> {paragraphWords[selectedWord.paragraphIndex][selectedWord.wordIndex]}
-                </div>
+        {/* Interlinear Text */}
+        {paragraphs.length === 0 ? (
+          <Empty description="No paragraphs" />
+        ) : (
+          paragraphs.map((para, paraIndex) => (
+            <Card key={para.guid} size="small">
+              <div style={{ fontFamily: 'monospace', lineHeight: '3em' }}>
+                {paragraphWords[paraIndex].map((word, wordIndex) => {
+                  const key = `${paraIndex}-${wordIndex}`
+                  const wordData = wordGlosses.get(key)
+                  const isSelected = selectedWord?.paragraphIndex === paraIndex && selectedWord?.wordIndex === wordIndex
+
+                  return (
+                    <div
+                      key={wordIndex}
+                      style={{
+                        display: 'inline-block',
+                        margin: '0 8px 16px 0',
+                        padding: '8px',
+                        cursor: 'pointer',
+                        backgroundColor: isSelected ? '#e6f7ff' : wordData ? '#f6ffed' : 'transparent',
+                        border: isSelected ? '2px solid #1890ff' : wordData ? '1px solid #52c41a' : '1px solid #d9d9d9',
+                        borderRadius: '4px',
+                        verticalAlign: 'top'
+                      }}
+                      onClick={() => handleWordClick(paraIndex, wordIndex)}
+                    >
+                      {/* Gloss line */}
+                      {wordData && (
+                        <div style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>
+                          {wordData.gloss}
+                        </div>
+                      )}
+                      {/* Wordform line */}
+                      <div style={{ fontSize: '14px', fontWeight: wordData ? 'bold' : 'normal' }}>
+                        {word}
+                      </div>
+                      {/* Parse indicator */}
+                      {wordData?.parseResult && (
+                        <div style={{ fontSize: '10px', color: '#52c41a', marginTop: '2px' }}>
+                          <CheckCircleOutlined /> Parsed
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </Card>
+          ))
+        )}
+
+        {/* Gloss Input Panel */}
+        {selectedWord !== null && (
+          <Card
+            title={
+              <Space>
+                <BookOutlined />
+                <span>Gloss Word: {paragraphWords[selectedWord.paragraphIndex][selectedWord.wordIndex]}</span>
+              </Space>
+            }
+            extra={
+              <Button type="link" onClick={() => setSelectedWord(null)}>
+                Close
+              </Button>
+            }
+          >
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Space style={{ width: '100%' }}>
+                <Button
+                  icon={<ThunderboltOutlined />}
+                  onClick={handleParseWord}
+                  loading={parsing}
+                  type="dashed"
+                >
+                  Auto-Parse
+                </Button>
                 <Input
-                  placeholder="Enter gloss..."
+                  placeholder="Enter gloss (e.g., walk-PAST-1SG)"
                   value={glossInput}
                   onChange={(e) => setGlossInput(e.target.value)}
                   onPressEnter={handleSaveGloss}
-                  suffix={
-                    <Button
-                      type="primary"
-                      size="small"
-                      icon={<SaveOutlined />}
-                      onClick={handleSaveGloss}
-                    >
-                      Save
-                    </Button>
-                  }
+                  style={{ flex: 1 }}
                 />
+                <Button
+                  type="primary"
+                  icon={<SaveOutlined />}
+                  onClick={handleSaveGloss}
+                  disabled={!glossInput}
+                >
+                  Save
+                </Button>
               </Space>
-            </Card>
-          )}
 
-          <Divider style={{ margin: '12px 0' }} />
-
-          <div style={{
-            padding: '16px',
-            background: '#fff',
-            border: '1px solid #d9d9d9',
-            borderRadius: '4px'
-          }}>
-            <Space direction="vertical" size="large" style={{ width: '100%' }}>
-              {paragraphWords.map((words, paraIndex) => (
-                <div key={paraIndex}>
-                  <Tag color="blue">Paragraph {paraIndex + 1}</Tag>
-                  <div style={{ marginTop: '12px' }}>
-                    <Space wrap size="large">
-                      {words.map((word, wordIndex) => {
-                        const key = getWordKey(paraIndex, wordIndex)
-                        const gloss = wordGlosses.get(key)
-                        const isSelected = selectedWord?.paragraphIndex === paraIndex &&
-                                         selectedWord?.wordIndex === wordIndex
-
-                        // Skip whitespace-only words
-                        if (word.trim().length === 0) return null
-
-                        // Display punctuation inline
-                        if (/^[.,!?;:]$/.test(word)) {
-                          return <span key={wordIndex} style={{ marginLeft: '-8px' }}>{word}</span>
-                        }
-
-                        return (
-                          <div
-                            key={wordIndex}
-                            style={{
-                              display: 'inline-flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              cursor: 'pointer',
-                              padding: '4px 8px',
-                              borderRadius: '4px',
-                              background: isSelected ? '#e6f7ff' :
-                                         gloss ? '#f6ffed' : 'transparent',
-                              border: isSelected ? '2px solid #1890ff' :
-                                     gloss ? '1px solid #b7eb8f' : '1px solid transparent'
-                            }}
-                            onClick={() => handleWordClick(paraIndex, wordIndex)}
-                          >
-                            <div style={{
-                              fontWeight: 500,
-                              fontSize: '15px',
-                              marginBottom: '4px'
-                            }}>
-                              {word}
+              {/* Parse Results */}
+              {showParseResults && currentParseResult && (
+                <Card size="small" title="Parse Results" style={{ marginTop: '8px' }}>
+                  {currentParseResult.analyses.length === 0 ? (
+                    <Empty
+                      description="No analyses found. Add morphemes in Grammar view."
+                      image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    />
+                  ) : (
+                    <Collapse
+                      items={currentParseResult.analyses.map((analysis, idx) => ({
+                        key: idx,
+                        label: (
+                          <Space>
+                            <Tag color={analysis.isValid ? 'green' : 'orange'}>
+                              {analysis.isValid ? 'Valid' : 'Invalid'}
+                            </Tag>
+                            <AntText strong>{analysis.gloss}</AntText>
+                            <AntText type="secondary">({analysis.category})</AntText>
+                          </Space>
+                        ),
+                        children: (
+                          <Space direction="vertical" style={{ width: '100%' }}>
+                            <div>
+                              <AntText strong>Morphemes:</AntText>
+                              <div style={{ marginTop: '8px' }}>
+                                {analysis.morphs.map((morph, mIdx) => (
+                                  <Tag key={mIdx} color="blue" style={{ marginBottom: '4px' }}>
+                                    {morph.form} ({morph.morpheme.gloss})
+                                  </Tag>
+                                ))}
+                              </div>
                             </div>
-                            <div style={{
-                              fontSize: '12px',
-                              color: gloss ? '#52c41a' : '#999',
-                              fontStyle: gloss ? 'normal' : 'italic',
-                              minHeight: '18px'
-                            }}>
-                              {gloss?.gloss || 'no gloss'}
-                            </div>
-                          </div>
+
+                            {!analysis.isValid && analysis.violatedConstraints && (
+                              <div>
+                                <AntText type="danger">Violated Constraints:</AntText>
+                                <ul style={{ marginTop: '4px', paddingLeft: '20px' }}>
+                                  {analysis.violatedConstraints.map((c, cIdx) => (
+                                    <li key={cIdx}>{c}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+
+                            <Button
+                              type="primary"
+                              size="small"
+                              onClick={() => handleSelectAnalysis(analysis)}
+                            >
+                              Use This Analysis
+                            </Button>
+                          </Space>
                         )
-                      })}
-                    </Space>
+                      }))}
+                    />
+                  )}
+                  <div style={{ marginTop: '8px' }}>
+                    <AntText type="secondary" style={{ fontSize: '12px' }}>
+                      Parse time: {currentParseResult.parseTime}ms
+                    </AntText>
                   </div>
-                </div>
-              ))}
-            </Space>
-          </div>
-
-          <Card size="small" title="Statistics" style={{ background: '#fafafa' }}>
-            <Space split={<Divider type="vertical" />}>
-              <AntText>
-                <strong>{paragraphs.length}</strong> paragraph{paragraphs.length !== 1 ? 's' : ''}
-              </AntText>
-              <AntText>
-                <strong>{paragraphWords.reduce((sum, words) => sum + words.filter(w => w.trim().length > 0 && !/^[.,!?;:]$/.test(w)).length, 0)}</strong> words
-              </AntText>
-              <AntText>
-                <strong>{wordGlosses.size}</strong> glossed
-              </AntText>
-              <AntText>
-                <strong>
-                  {Math.round((wordGlosses.size / Math.max(1, paragraphWords.reduce((sum, words) => sum + words.filter(w => w.trim().length > 0 && !/^[.,!?;:]$/.test(w)).length, 0))) * 100)}%
-                </strong> complete
-              </AntText>
+                </Card>
+              )}
             </Space>
           </Card>
-        </Space>
-      </Card>
+        )}
+
+        {/* Help Text */}
+        <Card size="small" style={{ background: '#fafafa' }}>
+          <AntText type="secondary">
+            💡 <strong>Tip:</strong> Click a word to gloss it. Use the Auto-Parse button to automatically analyze words
+            based on your morpheme dictionary. Green borders indicate glossed words.
+          </AntText>
+        </Card>
+      </Space>
     </div>
   )
 }

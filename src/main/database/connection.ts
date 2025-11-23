@@ -136,6 +136,14 @@ function createIndexes(): void {
       CREATE INDEX IF NOT EXISTS idx_conc_word ON concordance_cache(wordform);
       CREATE INDEX IF NOT EXISTS idx_conc_text ON concordance_cache(text_guid);
     `)
+
+    // Indexes for morphemes and parser
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_morph_type ON morphemes(type);
+      CREATE INDEX IF NOT EXISTS idx_morph_category ON morphemes(category);
+      CREATE INDEX IF NOT EXISTS idx_morph_form ON morphemes(form);
+      CREATE INDEX IF NOT EXISTS idx_constraint_morpheme ON morpheme_constraints(morpheme_id);
+    `)
   } catch (error) {
     console.error('Error creating indexes:', error)
   }

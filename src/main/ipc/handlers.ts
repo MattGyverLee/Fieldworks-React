@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import { getDatabase } from '../database/connection'
-import { lexicalEntries, texts, textParagraphs } from '../database/schema'
+import { lexicalEntries, texts, textParagraphs, morphemes, morphemeConstraints } from '../database/schema'
 import { eq, sql } from 'drizzle-orm'
 import { FWDataReader } from '../fwdata/reader'
 import { FWDataWriter } from '../fwdata/writer'
@@ -446,6 +446,133 @@ export function registerIpcHandlers(): void {
       throw new Error(error.message)
     }
   })
+
+  // Parser Operations
+  ipcMain.handle('parser:getMorphemes', async (_event) => {
+    try {
+      const db = getDatabase()
+      const morphs = await db
+        .select()
+        .from(morphemes)
+        .all()
+
+      return morphs.map(morphemeFromDb)
+    } catch (error: any) {
+      console.error('Error getting morphemes:', error)
+      throw new Error(error.message)
+    }
+  })
+
+  ipcMain.handle('parser:createMorpheme', async (_event, input: any) => {
+    try {
+      const db = getDatabase()
+      const id = input.id || `morph-${Date.now()}`
+
+      const newMorpheme = {
+        id,
+        form: input.form,
+        type: input.type,
+        category: input.category,
+        gloss: input.gloss,
+        propertiesJson: JSON.stringify(input.properties || []),
+        allomorphsJson: JSON.stringify(input.allomorphs || []),
+        dateCreated: new Date(),
+        dateModified: new Date()
+      }
+
+      await db.insert(morphemes).values(newMorpheme).run()
+
+      return morphemeFromDb(newMorpheme)
+    } catch (error: any) {
+      console.error('Error creating morpheme:', error)
+      throw new Error(error.message)
+    }
+  })
+
+  ipcMain.handle('parser:updateMorpheme', async (_event, id: string, updates: any) => {
+    try {
+      const db = getDatabase()
+
+      const updateData: any = {
+        dateModified: new Date()
+      }
+
+      if (updates.form !== undefined) updateData.form = updates.form
+      if (updates.type !== undefined) updateData.type = updates.type
+      if (updates.category !== undefined) updateData.category = updates.category
+      if (updates.gloss !== undefined) updateData.gloss = updates.gloss
+      if (updates.properties !== undefined) updateData.propertiesJson = JSON.stringify(updates.properties)
+      if (updates.allomorphs !== undefined) updateData.allomorphsJson = JSON.stringify(updates.allomorphs)
+
+      await db
+        .update(morphemes)
+        .set(updateData)
+        .where(eq(morphemes.id, id))
+        .run()
+
+      const updated = await db
+        .select()
+        .from(morphemes)
+        .where(eq(morphemes.id, id))
+        .get()
+
+      return morphemeFromDb(updated)
+    } catch (error: any) {
+      console.error('Error updating morpheme:', error)
+      throw new Error(error.message)
+    }
+  })
+
+  ipcMain.handle('parser:deleteMorpheme', async (_event, id: string) => {
+    try {
+      const db = getDatabase()
+
+      await db
+        .delete(morphemes)
+        .where(eq(morphemes.id, id))
+        .run()
+
+      return { success: true }
+    } catch (error: any) {
+      console.error('Error deleting morpheme:', error)
+      throw new Error(error.message)
+    }
+  })
+
+  ipcMain.handle('parser:parseWord', async (_event, word: string, config?: any) => {
+    try {
+      const { MorphologicalParser } = await import('../parser/morphologicalParser')
+      const db = getDatabase()
+
+      // Load all morphemes from database
+      const allMorphemes = await db.select().from(morphemes).all()
+      const morphemeList = allMorphemes.map(morphemeFromDb)
+
+      // Load all constraints
+      const allConstraints = await db.select().from(morphemeConstraints).all()
+      const constraintList = allConstraints.map((c: any) => ({
+        id: c.id,
+        morphemeId: c.morphemeId,
+        requires: JSON.parse(c.requiresJson || '[]'),
+        excludes: JSON.parse(c.excludesJson || '[]'),
+        mustPrecede: JSON.parse(c.mustPrecedeJson || '[]'),
+        mustFollow: JSON.parse(c.mustFollowJson || '[]')
+      }))
+
+      // Create parser and load data
+      const parser = new MorphologicalParser(config)
+      parser.loadMorphemes(morphemeList)
+      parser.loadConstraints(constraintList)
+
+      // Parse the word
+      const result = parser.parseWord(word)
+
+      return result
+    } catch (error: any) {
+      console.error('Error parsing word:', error)
+      throw new Error(error.message)
+    }
+  })
 }
 
 function entryFromDb(dbEntry: any): LexEntry {
@@ -496,5 +623,19 @@ function paragraphFromDb(dbPara: any): any {
     orderIndex: dbPara.orderIndex,
     dateCreated: new Date(dbPara.dateCreated),
     dateModified: new Date(dbPara.dateModified)
+  }
+}
+
+function morphemeFromDb(dbMorph: any): any {
+  return {
+    id: dbMorph.id,
+    form: dbMorph.form,
+    type: dbMorph.type,
+    category: dbMorph.category,
+    gloss: dbMorph.gloss,
+    properties: JSON.parse(dbMorph.propertiesJson || '[]'),
+    allomorphs: JSON.parse(dbMorph.allomorphsJson || '[]'),
+    dateCreated: new Date(dbMorph.dateCreated),
+    dateModified: new Date(dbMorph.dateModified)
   }
 }

@@ -5,7 +5,10 @@ import type {
   UpdateEntryInput,
   SearchQuery,
   SearchResult,
-  BulkEditInput
+  BulkEditInput,
+  Morpheme,
+  ParseResult,
+  ParserConfig
 } from '@shared/types'
 
 // Custom APIs for renderer
@@ -80,6 +83,24 @@ const api = {
   export: {
     getEntries: (): Promise<LexEntry[]> =>
       ipcRenderer.invoke('export:getEntries')
+  },
+
+  // Parser Operations
+  parser: {
+    getMorphemes: (): Promise<Morpheme[]> =>
+      ipcRenderer.invoke('parser:getMorphemes'),
+
+    createMorpheme: (input: Omit<Morpheme, 'id'>): Promise<Morpheme> =>
+      ipcRenderer.invoke('parser:createMorpheme', input),
+
+    updateMorpheme: (id: string, updates: Partial<Morpheme>): Promise<Morpheme> =>
+      ipcRenderer.invoke('parser:updateMorpheme', id, updates),
+
+    deleteMorpheme: (id: string): Promise<{ success: boolean }> =>
+      ipcRenderer.invoke('parser:deleteMorpheme', id),
+
+    parseWord: (word: string, config?: Partial<ParserConfig>): Promise<ParseResult> =>
+      ipcRenderer.invoke('parser:parseWord', word, config)
   }
 }
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
-import { Card, Button, Space, Typography, List, Modal, Form, Input, message, Empty, Tag } from 'antd'
-import { ToolOutlined, PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { Card, Button, Space, Typography, List, Modal, Form, Input, message, Empty, Tag, Tabs, Select } from 'antd'
+import { ToolOutlined, PlusOutlined, EditOutlined, DeleteOutlined, ExperimentOutlined } from '@ant-design/icons'
+import type { Morpheme, MorphemeType } from '@shared/types'
 
 const { Title, Paragraph, Text: AntText } = Typography
 
@@ -26,13 +27,21 @@ const DEFAULT_POS: PartOfSpeech[] = [
 ]
 
 export const GrammarView: React.FC = () => {
+  // Parts of Speech state
   const [partsOfSpeech, setPartsOfSpeech] = useState<PartOfSpeech[]>(DEFAULT_POS)
-  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isPOSModalOpen, setIsPOSModalOpen] = useState(false)
   const [editingPOS, setEditingPOS] = useState<PartOfSpeech | null>(null)
-  const [form] = Form.useForm()
+  const [posForm] = Form.useForm()
 
+  // Morphemes state
+  const [morphemes, setMorphemes] = useState<Morpheme[]>([])
+  const [isMorphModalOpen, setIsMorphModalOpen] = useState(false)
+  const [editingMorpheme, setEditingMorpheme] = useState<Morpheme | null>(null)
+  const [morphForm] = Form.useForm()
+  const [loadingMorphemes, setLoadingMorphemes] = useState(false)
+
+  // Load POS from localStorage
   useEffect(() => {
-    // Load from localStorage if available
     const saved = localStorage.getItem('partsOfSpeech')
     if (saved) {
       try {
@@ -43,24 +52,43 @@ export const GrammarView: React.FC = () => {
     }
   }, [])
 
+  // Load morphemes from database
+  useEffect(() => {
+    loadMorphemes()
+  }, [])
+
+  const loadMorphemes = async () => {
+    try {
+      setLoadingMorphemes(true)
+      const morphs = await window.api.parser.getMorphemes()
+      setMorphemes(morphs)
+    } catch (error: any) {
+      console.error('Error loading morphemes:', error)
+      message.error('Failed to load morphemes')
+    } finally {
+      setLoadingMorphemes(false)
+    }
+  }
+
   const savePOS = (updatedPOS: PartOfSpeech[]) => {
     setPartsOfSpeech(updatedPOS)
     localStorage.setItem('partsOfSpeech', JSON.stringify(updatedPOS))
   }
 
-  const handleAdd = () => {
+  // POS handlers
+  const handleAddPOS = () => {
     setEditingPOS(null)
-    form.resetFields()
-    setIsModalOpen(true)
+    posForm.resetFields()
+    setIsPOSModalOpen(true)
   }
 
-  const handleEdit = (pos: PartOfSpeech) => {
+  const handleEditPOS = (pos: PartOfSpeech) => {
     setEditingPOS(pos)
-    form.setFieldsValue(pos)
-    setIsModalOpen(true)
+    posForm.setFieldsValue(pos)
+    setIsPOSModalOpen(true)
   }
 
-  const handleDelete = (id: string) => {
+  const handleDeletePOS = (id: string) => {
     Modal.confirm({
       title: 'Delete Part of Speech',
       content: 'Are you sure you want to delete this part of speech? This may affect existing entries.',
@@ -74,16 +102,14 @@ export const GrammarView: React.FC = () => {
     })
   }
 
-  const handleSubmit = (values: any) => {
+  const handleSubmitPOS = (values: any) => {
     if (editingPOS) {
-      // Update existing
       const updated = partsOfSpeech.map(p =>
         p.id === editingPOS.id ? { ...p, ...values } : p
       )
       savePOS(updated)
       message.success('Part of speech updated')
     } else {
-      // Add new
       const newPOS: PartOfSpeech = {
         id: Date.now().toString(),
         ...values
@@ -91,9 +117,59 @@ export const GrammarView: React.FC = () => {
       savePOS([...partsOfSpeech, newPOS])
       message.success('Part of speech added')
     }
-    setIsModalOpen(false)
-    form.resetFields()
+    setIsPOSModalOpen(false)
+    posForm.resetFields()
   }
+
+  // Morpheme handlers
+  const handleAddMorpheme = () => {
+    setEditingMorpheme(null)
+    morphForm.resetFields()
+    setIsMorphModalOpen(true)
+  }
+
+  const handleEditMorpheme = (morpheme: Morpheme) => {
+    setEditingMorpheme(morpheme)
+    morphForm.setFieldsValue(morpheme)
+    setIsMorphModalOpen(true)
+  }
+
+  const handleDeleteMorpheme = (id: string) => {
+    Modal.confirm({
+      title: 'Delete Morpheme',
+      content: 'Are you sure you want to delete this morpheme?',
+      okText: 'Delete',
+      okType: 'danger',
+      onOk: async () => {
+        try {
+          await window.api.parser.deleteMorpheme(id)
+          message.success('Morpheme deleted')
+          loadMorphemes()
+        } catch (error: any) {
+          message.error('Failed to delete morpheme')
+        }
+      }
+    })
+  }
+
+  const handleSubmitMorpheme = async (values: any) => {
+    try {
+      if (editingMorpheme) {
+        await window.api.parser.updateMorpheme(editingMorpheme.id, values)
+        message.success('Morpheme updated')
+      } else {
+        await window.api.parser.createMorpheme(values)
+        message.success('Morpheme added')
+      }
+      setIsMorphModalOpen(false)
+      morphForm.resetFields()
+      loadMorphemes()
+    } catch (error: any) {
+      message.error(`Failed to ${editingMorpheme ? 'update' : 'add'} morpheme`)
+    }
+  }
+
+  const morphemeTypes: MorphemeType[] = ['prefix', 'root', 'suffix', 'infix', 'circumfix']
 
   return (
     <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
@@ -101,99 +177,184 @@ export const GrammarView: React.FC = () => {
         <Space direction="vertical" style={{ width: '100%' }} size="large">
           <div>
             <Title level={2}>
-              <ToolOutlined /> Grammar & Parts of Speech
+              <ToolOutlined /> Grammar & Morphology
             </Title>
             <Paragraph type="secondary">
-              Manage grammatical categories and parts of speech for your lexicon.
-              These categories help classify entries and provide grammatical information.
+              Manage grammatical categories, parts of speech, and morphemes for morphological parsing.
             </Paragraph>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Title level={4}>Parts of Speech ({partsOfSpeech.length})</Title>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={handleAdd}
-            >
-              Add Part of Speech
-            </Button>
-          </div>
+          <Tabs
+            defaultActiveKey="pos"
+            items={[
+              {
+                key: 'pos',
+                label: (
+                  <span>
+                    <ToolOutlined /> Parts of Speech
+                  </span>
+                ),
+                children: (
+                  <Space direction="vertical" style={{ width: '100%' }} size="large">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Title level={4}>Parts of Speech ({partsOfSpeech.length})</Title>
+                      <Button
+                        type="primary"
+                        icon={<PlusOutlined />}
+                        onClick={handleAddPOS}
+                      >
+                        Add Part of Speech
+                      </Button>
+                    </div>
 
-          {partsOfSpeech.length === 0 ? (
-            <Empty
-              description="No parts of speech defined"
-              style={{ padding: '48px 0' }}
-            >
-              <Button type="primary" onClick={handleAdd}>
-                Add First Part of Speech
-              </Button>
-            </Empty>
-          ) : (
-            <List
-              dataSource={partsOfSpeech}
-              renderItem={(pos) => (
-                <List.Item
-                  key={pos.id}
-                  actions={[
-                    <Button
-                      key="edit"
-                      type="text"
-                      icon={<EditOutlined />}
-                      onClick={() => handleEdit(pos)}
-                    >
-                      Edit
-                    </Button>,
-                    <Button
-                      key="delete"
-                      type="text"
-                      danger
-                      icon={<DeleteOutlined />}
-                      onClick={() => handleDelete(pos.id)}
-                    >
-                      Delete
-                    </Button>
-                  ]}
-                >
-                  <List.Item.Meta
-                    title={
-                      <Space>
-                        <AntText strong>{pos.name}</AntText>
-                        <Tag color="blue">{pos.abbreviation}</Tag>
-                      </Space>
-                    }
-                    description={pos.description || 'No description'}
-                  />
-                </List.Item>
-              )}
-            />
-          )}
+                    {partsOfSpeech.length === 0 ? (
+                      <Empty description="No parts of speech defined">
+                        <Button type="primary" onClick={handleAddPOS}>
+                          Add First Part of Speech
+                        </Button>
+                      </Empty>
+                    ) : (
+                      <List
+                        dataSource={partsOfSpeech}
+                        renderItem={(pos) => (
+                          <List.Item
+                            key={pos.id}
+                            actions={[
+                              <Button
+                                key="edit"
+                                type="text"
+                                icon={<EditOutlined />}
+                                onClick={() => handleEditPOS(pos)}
+                              >
+                                Edit
+                              </Button>,
+                              <Button
+                                key="delete"
+                                type="text"
+                                danger
+                                icon={<DeleteOutlined />}
+                                onClick={() => handleDeletePOS(pos.id)}
+                              >
+                                Delete
+                              </Button>
+                            ]}
+                          >
+                            <List.Item.Meta
+                              title={
+                                <Space>
+                                  <AntText strong>{pos.name}</AntText>
+                                  <Tag color="blue">{pos.abbreviation}</Tag>
+                                </Space>
+                              }
+                              description={pos.description || 'No description'}
+                            />
+                          </List.Item>
+                        )}
+                      />
+                    )}
+                  </Space>
+                )
+              },
+              {
+                key: 'morphemes',
+                label: (
+                  <span>
+                    <ExperimentOutlined /> Morphemes ({morphemes.length})
+                  </span>
+                ),
+                children: (
+                  <Space direction="vertical" style={{ width: '100%' }} size="large">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Title level={4}>Morpheme Dictionary ({morphemes.length})</Title>
+                      <Button
+                        type="primary"
+                        icon={<PlusOutlined />}
+                        onClick={handleAddMorpheme}
+                      >
+                        Add Morpheme
+                      </Button>
+                    </div>
 
-          <Card size="small" style={{ background: '#fafafa' }}>
-            <Title level={5}>About Parts of Speech</Title>
-            <ul style={{ margin: 0, paddingLeft: '20px' }}>
-              <li>Parts of speech classify words by their grammatical function</li>
-              <li>Each lexical entry can be assigned one or more parts of speech</li>
-              <li>Abbreviations appear in dictionary entries and analysis</li>
-              <li>You can customize this list for your specific language needs</li>
-            </ul>
-          </Card>
+                    {morphemes.length === 0 ? (
+                      <Empty description="No morphemes defined">
+                        <Button type="primary" onClick={handleAddMorpheme}>
+                          Add First Morpheme
+                        </Button>
+                      </Empty>
+                    ) : (
+                      <List
+                        loading={loadingMorphemes}
+                        dataSource={morphemes}
+                        renderItem={(morph) => (
+                          <List.Item
+                            key={morph.id}
+                            actions={[
+                              <Button
+                                key="edit"
+                                type="text"
+                                icon={<EditOutlined />}
+                                onClick={() => handleEditMorpheme(morph)}
+                              >
+                                Edit
+                              </Button>,
+                              <Button
+                                key="delete"
+                                type="text"
+                                danger
+                                icon={<DeleteOutlined />}
+                                onClick={() => handleDeleteMorpheme(morph.id)}
+                              >
+                                Delete
+                              </Button>
+                            ]}
+                          >
+                            <List.Item.Meta
+                              title={
+                                <Space>
+                                  <AntText strong>{morph.form}</AntText>
+                                  <Tag color="green">{morph.type}</Tag>
+                                  <Tag color="blue">{morph.category}</Tag>
+                                </Space>
+                              }
+                              description={`Gloss: ${morph.gloss}`}
+                            />
+                          </List.Item>
+                        )}
+                      />
+                    )}
+
+                    <Card size="small" style={{ background: '#fafafa' }}>
+                      <Title level={5}>About Morphemes</Title>
+                      <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                        <li><strong>Prefix:</strong> Attached before a root (un-, re-, pre-)</li>
+                        <li><strong>Root:</strong> Core meaning-bearing element (walk, book, happy)</li>
+                        <li><strong>Suffix:</strong> Attached after a root (-ing, -ed, -ly)</li>
+                        <li><strong>Infix:</strong> Inserted within a root (rare in English)</li>
+                        <li>These morphemes power automatic word parsing in the Interlinear Editor</li>
+                      </ul>
+                    </Card>
+                  </Space>
+                )
+              }
+            ]}
+          />
         </Space>
       </Card>
 
+      {/* POS Modal */}
       <Modal
         title={editingPOS ? 'Edit Part of Speech' : 'Add Part of Speech'}
-        open={isModalOpen}
+        open={isPOSModalOpen}
         onCancel={() => {
-          setIsModalOpen(false)
-          form.resetFields()
+          setIsPOSModalOpen(false)
+          posForm.resetFields()
         }}
-        onOk={() => form.submit()}
+        onOk={() => posForm.submit()}
       >
         <Form
-          form={form}
+          form={posForm}
           layout="vertical"
-          onFinish={handleSubmit}
+          onFinish={handleSubmitPOS}
         >
           <Form.Item
             name="name"
@@ -222,6 +383,67 @@ export const GrammarView: React.FC = () => {
               rows={3}
               placeholder="Optional description of this grammatical category"
             />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Morpheme Modal */}
+      <Modal
+        title={editingMorpheme ? 'Edit Morpheme' : 'Add Morpheme'}
+        open={isMorphModalOpen}
+        onCancel={() => {
+          setIsMorphModalOpen(false)
+          morphForm.resetFields()
+        }}
+        onOk={() => morphForm.submit()}
+      >
+        <Form
+          form={morphForm}
+          layout="vertical"
+          onFinish={handleSubmitMorpheme}
+        >
+          <Form.Item
+            name="form"
+            label="Form"
+            rules={[{ required: true, message: 'Please enter the morpheme form' }]}
+          >
+            <Input placeholder="e.g., un-, walk, -ing" />
+          </Form.Item>
+
+          <Form.Item
+            name="type"
+            label="Type"
+            rules={[{ required: true, message: 'Please select a type' }]}
+          >
+            <Select placeholder="Select morpheme type">
+              {morphemeTypes.map(type => (
+                <Select.Option key={type} value={type}>
+                  {type.charAt(0).toUpperCase() + type.slice(1)}
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="category"
+            label="Category (Part of Speech)"
+            rules={[{ required: true, message: 'Please enter a category' }]}
+          >
+            <Select placeholder="Select part of speech">
+              {partsOfSpeech.map(pos => (
+                <Select.Option key={pos.id} value={pos.abbreviation}>
+                  {pos.name} ({pos.abbreviation})
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="gloss"
+            label="Gloss"
+            rules={[{ required: true, message: 'Please enter a gloss' }]}
+          >
+            <Input placeholder="e.g., NEG, walk, PROG" />
           </Form.Item>
         </Form>
       </Modal>

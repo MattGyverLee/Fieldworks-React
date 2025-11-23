@@ -160,6 +160,31 @@ export const partsOfSpeech = sqliteTable('parts_of_speech', {
 })
 
 // ============================================================================
+// Morphemes & Parser
+// ============================================================================
+
+export const morphemes = sqliteTable('morphemes', {
+  id: text('id').primaryKey(),
+  form: text('form').notNull(),
+  type: text('type').notNull(), // 'prefix', 'root', 'suffix', 'infix', 'circumfix'
+  category: text('category').notNull(), // Part of speech
+  gloss: text('gloss').notNull(),
+  propertiesJson: text('properties_json').default('[]'),
+  allomorphsJson: text('allomorphs_json').default('[]'),
+  dateCreated: integer('date_created', { mode: 'timestamp' }).notNull(),
+  dateModified: integer('date_modified', { mode: 'timestamp' }).notNull()
+})
+
+export const morphemeConstraints = sqliteTable('morpheme_constraints', {
+  id: text('id').primaryKey(),
+  morphemeId: text('morpheme_id').notNull(),
+  requiresJson: text('requires_json').default('[]'), // Morpheme IDs that must appear
+  excludesJson: text('excludes_json').default('[]'), // Morpheme IDs that cannot appear
+  mustPrecedeJson: text('must_precede_json').default('[]'), // Ordering constraints
+  mustFollowJson: text('must_follow_json').default('[]')
+})
+
+// ============================================================================
 // Undo/Redo History
 // ============================================================================
 
