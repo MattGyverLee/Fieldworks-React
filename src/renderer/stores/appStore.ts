@@ -8,7 +8,7 @@ interface AppState {
 
   // UI state
   isSidebarOpen: boolean
-  currentView: 'lexicon' | 'texts' | 'concordance' | 'grammar' | 'notebook'
+  currentView: 'lexicon' | 'texts' | 'concordance' | 'export' | 'grammar' | 'notebook'
   theme: 'light' | 'dark'
 
   // Loading state
@@ -19,7 +19,7 @@ interface AppState {
   setCurrentProject: (project: Project | null) => void
   setProjectPath: (path: string | null) => void
   setSidebarOpen: (isOpen: boolean) => void
-  setCurrentView: (view: 'lexicon' | 'texts' | 'concordance' | 'grammar' | 'notebook') => void
+  setCurrentView: (view: 'lexicon' | 'texts' | 'concordance' | 'export' | 'grammar' | 'notebook') => void
   setTheme: (theme: 'light' | 'dark') => void
   setLoading: (isLoading: boolean, message?: string) => void
 }

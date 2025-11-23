@@ -430,6 +430,22 @@ export function registerIpcHandlers(): void {
       throw new Error(error.message)
     }
   })
+
+  // Export Operations
+  ipcMain.handle('export:getEntries', async (_event) => {
+    try {
+      const db = getDatabase()
+      const entries = await db
+        .select()
+        .from(lexicalEntries)
+        .all()
+
+      return entries.map(entryFromDb)
+    } catch (error: any) {
+      console.error('Error getting entries for export:', error)
+      throw new Error(error.message)
+    }
+  })
 }
 
 function entryFromDb(dbEntry: any): LexEntry {

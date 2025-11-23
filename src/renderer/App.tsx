@@ -5,18 +5,22 @@ import {
   FileTextOutlined,
   ToolOutlined,
   FolderOpenOutlined,
-  SearchOutlined
+  SearchOutlined,
+  SaveOutlined,
+  DownloadOutlined
 } from '@ant-design/icons'
 import { useAppStore } from './stores/appStore'
 import { LexiconView } from './features/lexicon/LexiconView'
 import { TextsView } from './features/texts/TextsView'
 import { ConcordanceView } from './features/concordance/ConcordanceView'
+import { ExportView } from './features/export/ExportView'
+import { GrammarView } from './features/grammar/GrammarView'
 import './styles/global.css'
 
 const { Header, Sider, Content } = Layout
 
 export const App: React.FC = () => {
-  const { currentView, isSidebarOpen, theme: appTheme, setCurrentView, setSidebarOpen, setLoading } = useAppStore()
+  const { currentView, isSidebarOpen, theme: appTheme, projectPath, setCurrentView, setSidebarOpen, setLoading, setProjectPath } = useAppStore()
 
   const menuItems = [
     {
@@ -33,6 +37,11 @@ export const App: React.FC = () => {
       key: 'concordance',
       icon: <SearchOutlined />,
       label: 'Concordance'
+    },
+    {
+      key: 'export',
+      icon: <DownloadOutlined />,
+      label: 'Export'
     },
     {
       key: 'grammar',
@@ -60,6 +69,7 @@ export const App: React.FC = () => {
 
       if (result.success) {
         console.log('Project opened successfully')
+        setProjectPath(filePath)
         // Reload entries after opening project
         window.location.reload()
       } else {
@@ -75,6 +85,62 @@ export const App: React.FC = () => {
     }
   }
 
+  const handleSaveProject = async () => {
+    if (!projectPath) {
+      await handleSaveAsProject()
+      return
+    }
+
+    try {
+      setLoading(true, 'Saving project...')
+
+      const result = await window.api.project.save(projectPath, 'project-guid')
+
+      if (result.success) {
+        console.log('Project saved successfully')
+        alert('Project saved successfully')
+      } else {
+        console.error('Failed to save project:', result.error)
+        alert(`Failed to save project: ${result.error}`)
+      }
+
+      setLoading(false)
+    } catch (error: any) {
+      console.error('Error saving project:', error)
+      alert(`Error saving project: ${error.message}`)
+      setLoading(false)
+    }
+  }
+
+  const handleSaveAsProject = async () => {
+    try {
+      setLoading(true, 'Saving project as...')
+
+      const filePath = await window.api.dialog.saveFile()
+      if (!filePath) {
+        setLoading(false)
+        return
+      }
+
+      const result = await window.api.project.save(filePath, 'project-guid')
+
+      if (result.success) {
+        console.log('Project saved successfully')
+        setProjectPath(filePath)
+        alert('Project saved successfully')
+      } else {
+        console.error('Failed to save project:', result.error)
+        alert(`Failed to save project: ${result.error}`)
+      }
+
+      setLoading(false)
+    } catch (error: any) {
+      console.error('Error saving project:', error)
+      alert(`Error saving project: ${error.message}`)
+      setLoading(false)
+    }
+  }
+
   return (
     <ConfigProvider
       theme={{
@@ -82,10 +148,15 @@ export const App: React.FC = () => {
       }}
     >
       <Layout style={{ height: '100vh' }}>
-        <Header style={{ display: 'flex', alignItems: 'center', padding: '0 16px' }}>
+        <Header style={{ display: 'flex', alignItems: 'center', padding: '0 16px', gap: '8px' }}>
           <div style={{ color: 'white', fontSize: '18px', fontWeight: 'bold', marginRight: '24px' }}>
             FieldWorks
           </div>
+          {projectPath && (
+            <div style={{ color: '#ddd', fontSize: '12px' }}>
+              {projectPath.split('/').pop()}
+            </div>
+          )}
           <div style={{ flex: 1 }} />
           <button
             onClick={handleOpenProject}
@@ -95,11 +166,43 @@ export const App: React.FC = () => {
               border: 'none',
               padding: '8px 16px',
               borderRadius: '4px',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              marginRight: '8px'
             }}
           >
-            <FolderOpenOutlined /> Open Project
+            <FolderOpenOutlined /> Open
           </button>
+          {projectPath && (
+            <>
+              <button
+                onClick={handleSaveProject}
+                style={{
+                  background: '#52c41a',
+                  color: 'white',
+                  border: 'none',
+                  padding: '8px 16px',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  marginRight: '8px'
+                }}
+              >
+                <SaveOutlined /> Save
+              </button>
+              <button
+                onClick={handleSaveAsProject}
+                style={{
+                  background: '#13c2c2',
+                  color: 'white',
+                  border: 'none',
+                  padding: '8px 12px',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                Save As...
+              </button>
+            </>
+          )}
         </Header>
         <Layout>
           <Sider
@@ -130,12 +233,8 @@ export const App: React.FC = () => {
               {currentView === 'lexicon' && <LexiconView />}
               {currentView === 'texts' && <TextsView />}
               {currentView === 'concordance' && <ConcordanceView />}
-              {currentView === 'grammar' && (
-                <div style={{ padding: '24px' }}>
-                  <h2>Grammar View</h2>
-                  <p>Coming in Phase 6</p>
-                </div>
-              )}
+              {currentView === 'export' && <ExportView />}
+              {currentView === 'grammar' && <GrammarView />}
             </Content>
           </Layout>
         </Layout>

@@ -74,6 +74,12 @@ const api = {
 
     updateParagraph: (guid: string, content: Record<string, string>): Promise<any> =>
       ipcRenderer.invoke('texts:updateParagraph', guid, content)
+  },
+
+  // Export Operations
+  export: {
+    getEntries: (): Promise<LexEntry[]> =>
+      ipcRenderer.invoke('export:getEntries')
   }
 }
 
