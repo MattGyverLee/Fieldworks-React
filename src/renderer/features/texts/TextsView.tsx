@@ -1,8 +1,6 @@
 import React from 'react'
-import { Layout, Button, Space, Empty } from 'antd'
+import { Button, Space, Empty } from 'antd'
 import { PlusOutlined, FileTextOutlined } from '@ant-design/icons'
-
-const { Content } = Layout
 
 export const TextsView: React.FC = () => {
   return (

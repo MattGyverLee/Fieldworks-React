@@ -16,7 +16,7 @@ export const searchResultsAtom = atom<SearchResult[]>([])
 export const filterTextAtom = atom('')
 
 // Selected entries (for bulk edit)
-export const selectedEntriesAtom = atom<Set<string>>(new Set())
+export const selectedEntriesAtom = atom<Set<string>>(new Set<string>())
 
 // Current entry being edited
 export const currentEntryGuidAtom = atom<string | null>(null)
@@ -45,7 +45,9 @@ export const filteredEntriesAtom = atom((get) => {
       entry.lexemeForm.toLowerCase().includes(filter) ||
       entry.citationForm?.toLowerCase().includes(filter) ||
       entry.senses.some((sense) =>
-        Object.values(sense.definition).some((def) => def.toLowerCase().includes(filter))
+        Object.values(sense.definition).some((def) =>
+          typeof def === 'string' && def.toLowerCase().includes(filter)
+        )
       )
   )
 })
@@ -130,7 +132,7 @@ export const toggleSelectEntryAtom = atom(
 
 export const clearSelectionAtom = atom(
   null,
-  (get, set) => {
-    set(selectedEntriesAtom, new Set())
+  (_get, set) => {
+    set(selectedEntriesAtom, new Set<string>())
   }
 )

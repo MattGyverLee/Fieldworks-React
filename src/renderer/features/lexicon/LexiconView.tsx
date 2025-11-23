@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect } from 'react'
 import { Layout, Input, Button, Space, Spin } from 'antd'
 import { SearchOutlined, PlusOutlined, SaveOutlined, BookOutlined } from '@ant-design/icons'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
@@ -56,7 +56,7 @@ export const LexiconView: React.FC = () => {
     }
 
     try {
-      const results = await window.api.search.entries({ query: value })
+      const results = await window.api.search.entries({ query: value, limit: 100 })
       setSearchResults(results)
     } catch (error) {
       console.error('Error searching:', error)

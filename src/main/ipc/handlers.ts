@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron'
 import { getDatabase } from '../database/connection'
 import { lexicalEntries } from '../database/schema'
-import { eq, like, sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { FWDataReader } from '../fwdata/reader'
 import { FWDataWriter } from '../fwdata/writer'
 import type {
@@ -16,7 +16,7 @@ import { nanoid } from 'nanoid'
 
 export function registerIpcHandlers(): void {
   // Project Operations
-  ipcMain.handle('project:open', async (event, filePath: string) => {
+  ipcMain.handle('project:open', async (_event, filePath: string) => {
     try {
       const reader = new FWDataReader()
       await reader.loadProject(filePath)
@@ -27,7 +27,7 @@ export function registerIpcHandlers(): void {
     }
   })
 
-  ipcMain.handle('project:save', async (event, filePath: string, projectGuid: string) => {
+  ipcMain.handle('project:save', async (_event, filePath: string, projectGuid: string) => {
     try {
       const writer = new FWDataWriter()
       await writer.saveProject(filePath, projectGuid)
@@ -39,7 +39,7 @@ export function registerIpcHandlers(): void {
   })
 
   // Lexicon Operations
-  ipcMain.handle('lexicon:getEntries', async (event, limit: number = 1000, offset: number = 0) => {
+  ipcMain.handle('lexicon:getEntries', async (_event, limit: number = 1000, offset: number = 0) => {
     try {
       const db = getDatabase()
       const entries = await db
@@ -56,7 +56,7 @@ export function registerIpcHandlers(): void {
     }
   })
 
-  ipcMain.handle('lexicon:getEntry', async (event, guid: string) => {
+  ipcMain.handle('lexicon:getEntry', async (_event, guid: string) => {
     try {
       const db = getDatabase()
       const entry = await db
@@ -74,7 +74,7 @@ export function registerIpcHandlers(): void {
     }
   })
 
-  ipcMain.handle('lexicon:createEntry', async (event, input: CreateEntryInput) => {
+  ipcMain.handle('lexicon:createEntry', async (_event, input: CreateEntryInput) => {
     try {
       const db = getDatabase()
 
@@ -104,7 +104,7 @@ export function registerIpcHandlers(): void {
     }
   })
 
-  ipcMain.handle('lexicon:updateEntry', async (event, input: UpdateEntryInput) => {
+  ipcMain.handle('lexicon:updateEntry', async (_event, input: UpdateEntryInput) => {
     try {
       const db = getDatabase()
 
@@ -130,7 +130,7 @@ export function registerIpcHandlers(): void {
     }
   })
 
-  ipcMain.handle('lexicon:deleteEntry', async (event, guid: string) => {
+  ipcMain.handle('lexicon:deleteEntry', async (_event, guid: string) => {
     try {
       const db = getDatabase()
 
@@ -146,7 +146,7 @@ export function registerIpcHandlers(): void {
   })
 
   // Search Operations
-  ipcMain.handle('search:entries', async (event, query: SearchQuery) => {
+  ipcMain.handle('search:entries', async (_event, query: SearchQuery) => {
     try {
       const db = getDatabase()
 
@@ -172,7 +172,7 @@ export function registerIpcHandlers(): void {
   })
 
   // Bulk Edit Operations
-  ipcMain.handle('lexicon:bulkEdit', async (event, input: BulkEditInput) => {
+  ipcMain.handle('lexicon:bulkEdit', async (_event, input: BulkEditInput) => {
     try {
       const db = getDatabase()
 
@@ -201,19 +201,21 @@ export function registerIpcHandlers(): void {
             isDirty: true
           }
 
-          if (input.field === 'lexemeForm' && entry.lexemeForm) {
+          if (input.field === 'lexemeForm' && entry.lexemeForm && input.find) {
             updates.lexemeForm = entry.lexemeForm.replace(
               new RegExp(input.find, 'g'),
               input.replace
             )
-          } else if (input.field === 'definition') {
+          } else if (input.field === 'definition' && input.find) {
             const senses = JSON.parse(entry.sensesJson || '[]')
+            const findPattern = input.find
+            const replaceWith = input.replace
             senses.forEach((sense: any) => {
               if (sense.definition) {
                 Object.keys(sense.definition).forEach((ws) => {
                   sense.definition[ws] = sense.definition[ws].replace(
-                    new RegExp(input.find, 'g'),
-                    input.replace
+                    new RegExp(findPattern, 'g'),
+                    replaceWith
                   )
                 })
               }

@@ -185,10 +185,8 @@ export async function withTransaction<T>(
 }
 
 // Backup utility
-export function createBackup(backupPath: string): void {
+export async function createBackup(backupPath: string): Promise<void> {
   if (!sqlite) throw new Error('Database not initialized')
 
-  const backup = sqlite.backup(backupPath)
-  backup.step(-1) // -1 means copy entire database
-  backup.finish()
+  await sqlite.backup(backupPath)
 }

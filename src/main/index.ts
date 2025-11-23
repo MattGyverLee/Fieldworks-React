@@ -26,7 +26,7 @@ function createWindow(): void {
     mainWindow?.show()
   })
 
-  mainWindow.webContents.setWindowOpenHandler((details) => {
+  mainWindow.webContents.setWindowOpenHandler(() => {
     return { action: 'deny' }
   })
 
@@ -79,7 +79,7 @@ app.whenReady().then(() => {
     return result.filePaths[0]
   })
 
-  ipcMain.handle('dialog:saveFile', async (event, defaultPath?: string) => {
+  ipcMain.handle('dialog:saveFile', async (_event, defaultPath?: string) => {
     const result = await dialog.showSaveDialog(mainWindow!, {
       defaultPath,
       filters: [

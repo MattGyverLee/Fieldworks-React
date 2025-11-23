@@ -1,10 +1,8 @@
 import { XMLBuilder } from 'fast-xml-parser'
 import { getDatabase } from '../database/connection'
-import { lexicalEntries, lexicalSenses, texts, textParagraphs } from '../database/schema'
-import { eq } from 'drizzle-orm'
+import { lexicalEntries, texts } from '../database/schema'
 import * as fs from 'fs/promises'
-import * as path from 'path'
-import type { LexEntry, LexSense } from '@shared/types'
+import type { LexSense } from '@shared/types'
 
 export class FWDataWriter {
   private builder: XMLBuilder

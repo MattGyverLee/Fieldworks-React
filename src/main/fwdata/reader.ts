@@ -1,7 +1,7 @@
 import { XMLParser } from 'fast-xml-parser'
-import { getDatabase, withTransaction } from '../database/connection'
-import { lexicalEntries, lexicalSenses, texts, textParagraphs, textSegments } from '../database/schema'
-import { validate as validateUuid, v4 as uuidv4 } from 'uuid'
+import { withTransaction } from '../database/connection'
+import { lexicalEntries, texts, textParagraphs } from '../database/schema'
+import { validate as validateUuid } from 'uuid'
 import type { LexEntry, LexSense, StText, TextParagraph, TextSegment } from '@shared/types'
 import * as fs from 'fs/promises'
 
@@ -23,7 +23,7 @@ export class FWDataReader {
       attributeNamePrefix: '@_',
       parseTagValue: false,
       trimValues: true,
-      isArray: (tagName) => ['rt', 'AStr', 'AUni', 'objsur'].includes(tagName)
+      isArray: (tagName: string) => ['rt', 'AStr', 'AUni', 'objsur'].includes(tagName)
     })
     this.objectCache = new Map()
   }

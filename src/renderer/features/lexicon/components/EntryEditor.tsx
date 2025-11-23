@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from 'react'
-import { Form, Input, Button, Card, Space, Divider, Collapse, message } from 'antd'
+import { Form, Input, Button, Card, Space, Divider, message } from 'antd'
 import { PlusOutlined, DeleteOutlined, SaveOutlined } from '@ant-design/icons'
 import { useAtom } from 'jotai'
 import { entryAtomFamily } from '../../../stores/lexiconAtoms'
 import type { LexEntry, LexSense } from '@shared/types'
 
 const { TextArea } = Input
-const { Panel } = Collapse
 
 interface EntryEditorProps {
   entryGuid: string
@@ -19,7 +18,7 @@ export const EntryEditor: React.FC<EntryEditorProps> = ({ entryGuid }) => {
 
   useEffect(() => {
     if (entry) {
-      form.setFieldsValues({
+      form.setFieldsValue({
         lexemeForm: entry.lexemeForm,
         citationForm: entry.citationForm || '',
         homographNumber: entry.homographNumber || '',
